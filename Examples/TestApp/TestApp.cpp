@@ -6,5 +6,7 @@ int main(int argc, char** argv)
 
 	HANDLE hKernel = JTAGOpenKernel();
 
+	JTAGRun();
+
 	return 0;
 }

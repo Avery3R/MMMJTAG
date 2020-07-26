@@ -539,7 +539,7 @@ JTAGIMP BOOL WINAPI JTAGRun()
 
 	OpenIPC::IPC_Handle operation;
 
-	if(!CallIPCAndCheckErrors([runsvc, &operation]{return runsvc->HaltAll(&operation);}, "Resuming execution on target target"))
+	if(!CallIPCAndCheckErrors([runsvc, &operation]{return runsvc->GoAll(&operation);}, "Resuming execution on target target"))
 	{
 		return FALSE;
 	}
@@ -570,47 +570,25 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 		return INVALID_HANDLE_VALUE;
 	}
 
-	uint64_t kernelSyscallAddr = 0;
-	while(true)
-	{
-		for(const auto &threadId : gThreads)
-		{
-			uint64_t lstar;
-			lstar = CPUMSRRead64(threadId, MSR::IA32_LSTAR_MSR);
-
-			std::cout << "thread: " << hexout(threadId) << " IA32_LSTAR_MSR: " << hexout(lstar) << std::endl;
-
-			if(lstar != 0)
-			{
-				kernelSyscallAddr = lstar;
-				break;
-			}
-		}
-
-		if(kernelSyscallAddr != 0)
-		{
-			break;
-		}
-		else
-		{
-			std::cout << "Syscalls not yet set up, letting target run for 5 more seconds..." << std::endl;
-
-			if(!JTAGRun())
-			{
-				return INVALID_HANDLE_VALUE;
-			}
-			std::this_thread::sleep_for(std::chrono::seconds(5));
-			if(!JTAGHaltExecution())
-			{
-				return INVALID_HANDLE_VALUE;
-			}
-		}
-	}
-
-
 	uint64_t kernelAddr = 0;
 	for(const auto &threadId : gThreads)
 	{
+		uint64_t lstar;
+		lstar = CPUMSRRead64(threadId, MSR::IA32_LSTAR_MSR);
+
+		std::cout << "thread: " << hexout(threadId) << " IA32_LSTAR_MSR: " << hexout(lstar) << std::endl;
+
+		uint64_t kernelSyscallAddr = 0;
+
+		if(lstar != 0)
+		{
+			kernelSyscallAddr = lstar;
+		}
+		else
+		{
+			continue;
+		}
+
 		const uint64_t CS = CPURegRead64(threadId, "cs");
 
 		std::cout << "thread: " << hexout(threadId) << " CS: " << hexout(CS) << std::endl;
@@ -630,7 +608,9 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 
 				if(!CPUMemRead(threadId, searchBase-lookback, &membuf[0], membuf.size()))
 				{
-					return INVALID_HANDLE_VALUE;
+					//Something is messed up with this thread
+					std::cout << "Memory read error... Continuing onto the next thread" << std::endl;
+					break;
 				}
 
 				for(size_t offset = 0; offset < MEMBUF_SIZE; offset += PAGE_SIZE)
@@ -683,8 +663,6 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 				JTAGRun();
 				return hKernel;
 			}
-
-			break;
 		}
 	}
 
