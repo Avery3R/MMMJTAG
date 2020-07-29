@@ -15,13 +15,18 @@ extern "C"
 {
 #endif
 
+#define JTAG_DMA_DCI 0 // For systems where the Dma service actually works
+#define JTAG_DMA_HALT_ALL_CORES 1 // Halts all CPUs then uses one at random to do DMA
+#define JTAG_DMA_DEDICATED_CORE 2 // Halts the last core and uses one of its threads to do DMA. IMPORTANT: Currently hyperthreading is assumed to be enabled. So if it's not things will mess up.
+
 	/// <summary>
 	/// Initializes JTAG and attemps to connect to the target
 	/// </summary>
+	/// <param name="dmaMode">See JTAG_DMA_* constants</param>
 	/// <returns>
 	/// TRUE if successful, FALSE otherwise.
 	/// </returns>
-	JTAGIMP BOOL WINAPI JTAGConnect();
+	JTAGIMP BOOL WINAPI JTAGConnect(BYTE _In_ dmaMode = JTAG_DMA_HALT_ALL_CORES);
 
 	/// <summary>
 	/// Attempts to halt execution on the target.
@@ -30,6 +35,22 @@ extern "C"
 	/// TRUE if successful, FALSE otherwise.
 	/// </returns>
 	JTAGIMP BOOL WINAPI JTAGHaltExecution();
+
+	/// <summary>
+	/// Gets number of CPU Cores
+	/// </summary>
+	/// <returns>
+	/// number of CPU Cores.
+	/// </returns>
+	JTAGIMP BYTE WINAPI JTAGGetNumCores();
+
+	/// <summary>
+	/// Gets run status of a core
+	/// </summary>
+	/// <returns>
+	/// TRUE if that core is running, FALSE if it is not, or if there was an error.
+	/// </returns>
+	JTAGIMP BOOL WINAPI JTAGIsCoreRunning(BYTE _In_ coreNumber);
 
 	/// <summary>
 	/// Attempts to resume exeuction on the target.
@@ -64,6 +85,14 @@ extern "C"
 	/// INVALID_HANDLE_VALUE if unsucessful, otherwise a HANDLE value that can be used in functions requiring a HKERNEL parameter.
 	/// </returns>
 	JTAGIMP HKERNEL WINAPI JTAGOpenKernel();
+
+	/// <summary>
+	/// Reads physical memory into buffer
+	/// </summary>
+	/// <returns>
+	/// TRUE if successful, FALSE otherwise.
+	/// </returns>
+	JTAGIMP BOOL WINAPI JTAGDMA(DWORD64 _In_ physicalAddress, PVOID _In_ buffer, DWORD64 _In_ bufferSize);
 
 #ifdef __cplusplus
 }

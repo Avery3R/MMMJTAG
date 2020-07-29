@@ -11,5 +11,5 @@ namespace MSR
 };
 
 uint64_t CPURegRead64(const OpenIPC::IPC_DeviceId dev, const std::string &regName);
-bool CPUMemRead(const OpenIPC::IPC_DeviceId dev, const uint64_t addr, void* data, const size_t dataSize);
+bool CPUMemRead(const OpenIPC::IPC_DeviceId dev, const uint64_t addr, void* data, const size_t dataSize, bool dma = false);
 uint64_t CPUMSRRead64(const OpenIPC::IPC_DeviceId dev, MSR::addr_t msr);

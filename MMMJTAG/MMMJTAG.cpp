@@ -37,8 +37,17 @@ void MessageHandler(OpenIPC::IPC_MessageEventArgs *args, OpenIPC::IPC_UINT64 use
 /// </summary>
 std::vector<OpenIPC::IPC_DeviceId> gThreads;
 
-JTAGIMP BOOL WINAPI JTAGConnect()
+/// <summary>
+/// CPU Cores for JTAG_DMA_DEDICATED_CORE mode
+/// </summary>
+std::vector<OpenIPC::IPC_DeviceId> dmaThreads;
+
+BYTE gDMAMode = JTAG_DMA_HALT_ALL_CORES;
+
+JTAGIMP BOOL WINAPI JTAGConnect(BYTE _In_ dmaMode)
 {
+	gDMAMode = dmaMode;
+
 	if(!CallIPCAndCheckErrors([]{return OpenIPC::IPC_ConnectSingleton("IntelJtagCredBypass", OpenIPC::Out_of_Process);}, "Connecting to OpenIPC"))
 	{
 		return FALSE;
@@ -118,9 +127,22 @@ JTAGIMP BOOL WINAPI JTAGConnect()
 		return FALSE;
 	}
 
+	if(gDMAMode == JTAG_DMA_DEDICATED_CORE)
+	{
+		//TODO: HACK: Make this configurable, currently assumes hyperthreading
+		dmaThreads.push_back(gThreads[gThreads.size()-2]);
+		dmaThreads.push_back(gThreads[gThreads.size()-1]);
+		gThreads.resize(gThreads.size()-2);
+	}
+
 	for(const auto &threadId : gThreads)
 	{
 		std::cout << "Core ID: " << hexout(threadId) << std::endl;
+	}
+
+	for(const auto &threadId : dmaThreads)
+	{
+		std::cout << "DMA Core ID: " << hexout(threadId) << std::endl;
 	}
 
 	return TRUE;
@@ -200,6 +222,42 @@ JTAGIMP BOOL WINAPI JTAGRun()
 	}
 
 	return TRUE;
+}
+
+JTAGIMP BYTE WINAPI JTAGGetNumCores()
+{
+	return (BYTE)gThreads.size();
+}
+
+
+JTAGIMP BOOL WINAPI JTAGIsCoreRunning(BYTE _In_ coreNumber)
+{
+	OpenIPC::Service_RunControl *runsvc;
+	OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_RunControl, (void**)&runsvc);
+
+	if(!runsvc)
+	{
+		std::cout << "Could not get the run control service" << std::endl;
+		return FALSE;
+	}
+
+	OpenIPC::Service_OperationReceipt *opsvc = nullptr;
+	OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_OperationReceipt, (void**)&opsvc);
+	if(!opsvc)
+	{
+		std::cout << "Could not get the operation receipt service" << std::endl;
+		return 0;
+	}
+
+	OpenIPC::IPC_DeviceId coreId = gThreads[coreNumber];
+	OpenIPC::IPC_RunStates runStatus;
+
+	if(!CallIPCAndCheckErrors([runsvc, coreId, &runStatus]{return runsvc->GetRunStatus(coreId, &runStatus);}, "Getting execution status of core", true))
+	{
+		return FALSE;
+	}
+
+	return runStatus == OpenIPC::Running;
 }
 
 std::string gSymbolPath = std::string(getenv("TEMP"))+"\\JTAGSymbols";
@@ -313,4 +371,40 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 	}
 
 	return INVALID_HANDLE_VALUE;
+}
+
+JTAGIMP BOOL WINAPI JTAGDMA(DWORD64 _In_ physicalAddress, PVOID _In_ buffer, DWORD64 _In_ bufferSize)
+{
+	BOOL result = FALSE;
+
+	switch(gDMAMode)
+	{
+		case JTAG_DMA_DCI:
+		{
+			std::cout << "JTAG_DMA_DCI not yet implemented" << std::endl;
+			return FALSE;
+		};
+		break;
+		case JTAG_DMA_HALT_ALL_CORES:
+		{
+			bool wasAnyCoreRunning = JTAGIsCoreRunning(gThreads[0]);
+			JTAGHaltExecution();
+
+			result = CPUMemRead(gThreads[0], physicalAddress, buffer, bufferSize, true) ? TRUE : FALSE;
+
+			if(wasAnyCoreRunning)
+			{
+				JTAGRun();
+			}
+		};
+		break;
+		case JTAG_DMA_DEDICATED_CORE:
+		{
+			std::cout << "JTAG_DMA_DEDICATED_CORE not yet implemented" << std::endl;
+			return FALSE;
+		}
+		break;
+	}
+
+	return FALSE;
 }

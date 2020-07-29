@@ -49,12 +49,12 @@ uint64_t CPURegRead64(const OpenIPC::IPC_DeviceId dev, const std::string &regNam
 	return reg;
 }
 
-bool CPUMemRead(const OpenIPC::IPC_DeviceId dev, const uint64_t addr, void* data, const size_t dataSize)
+bool CPUMemRead(const OpenIPC::IPC_DeviceId dev, const uint64_t addr, void* data, const size_t dataSize, bool dma)
 {
 	OpenIPC::IPC_Address ipcaddr = {0};
 	ipcaddr.structureSize = sizeof(ipcaddr);
 	ipcaddr.offset = addr;
-	ipcaddr._addressType = OpenIPC::Linear;
+	ipcaddr._addressType = dma ? OpenIPC::Physical : OpenIPC::Linear;
 
 	OpenIPC::Service_Memory *memsvc;
 	OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_Memory, (void**)&memsvc);
