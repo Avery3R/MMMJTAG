@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -162,10 +162,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="CPUHelpers.cpp" />
+    <ClCompile Include="MiscHelpers.cpp" />
     <ClCompile Include="MMMJTAG.cpp" />
+    <ClCompile Include="SymHelpers.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="HexOut.hpp" />
+    <ClInclude Include="CPUHelpers.hpp" />
     <ClInclude Include="Includes\MMMJTAG.h" />
+    <ClInclude Include="MiscHelpers.hpp" />
     <ClInclude Include="SpookyIntelStuff\IpcApiAccess.hpp" />
     <ClInclude Include="SpookyIntelStuff\IPC_BitData.hpp" />
     <ClInclude Include="SpookyIntelStuff\IPC_Device.hpp" />
@@ -178,6 +184,7 @@
     <ClInclude Include="SpookyIntelStuff\IPC_PlatformControl.hpp" />
     <ClInclude Include="SpookyIntelStuff\IPC_Register.hpp" />
     <ClInclude Include="SpookyIntelStuff\IPC_RunControl.hpp" />
+    <ClInclude Include="SymHelpers.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

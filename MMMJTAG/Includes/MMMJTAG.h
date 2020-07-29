@@ -42,7 +42,7 @@ extern "C"
 	/// <summary>
 	/// Sets the path where downloaded symbols will be cached.
 	/// </summary>
-	JTAGIMP VOID WINAPI JTAGSetSymbolCachePath(LPCSTR symPath);
+	JTAGIMP VOID WINAPI JTAGSetSymbolCachePath(LPCSTR _In_ symPath);
 
 	typedef HANDLE HKERNEL;
 
