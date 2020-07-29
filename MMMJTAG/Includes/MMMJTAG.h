@@ -94,6 +94,14 @@ extern "C"
 	/// </returns>
 	JTAGIMP BOOL WINAPI JTAGDMA(DWORD64 _In_ physicalAddress, PVOID _In_ buffer, DWORD64 _In_ bufferSize);
 
+	/// <summary>
+	/// Translates a virtual address into a physical one
+	/// </summary>
+	/// <returns>
+	/// Physical address, 0 if the page isn't present or if there was an error
+	/// </returns>
+	JTAGIMP DWORD64 WINAPI JTAGTranslateAddress(DWORD64 _In_ pageTableAddress, DWORD64 _In_ virtualAddress);
+
 #ifdef __cplusplus
 }
 #endif

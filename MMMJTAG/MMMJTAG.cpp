@@ -406,5 +406,79 @@ JTAGIMP BOOL WINAPI JTAGDMA(DWORD64 _In_ physicalAddress, PVOID _In_ buffer, DWO
 		break;
 	}
 
-	return FALSE;
+	return result;
+}
+
+JTAGIMP DWORD64 WINAPI JTAGTranslateAddress(DWORD64 _In_ pageTableAddress, DWORD64 _In_ virtualAddress)
+{
+	virtualAddress &= (1LL<<48)-1;
+	uint64_t pml4Index = virtualAddress >> 39;
+
+	uint64_t pml4Entry = 0;
+
+	if(!JTAGDMA(pageTableAddress+(uint64_t(pml4Index)*8), &pml4Entry, 8))
+	{
+		return 0;
+	}
+
+	if(!(pml4Entry&1))
+	{
+		return 0; // Page not present
+	}
+
+	virtualAddress &= (1LL<<30)-1;
+
+	uint64_t pdpteAddress = pml4Entry&(~(0xFFF));
+
+	uint64_t pdpteIndex = virtualAddress>>30;
+
+	uint64_t pdpteEntry = 0;
+
+	if(!JTAGDMA(pdpteAddress+(uint64_t(pdpteIndex)*8), &pdpteEntry, 8))
+	{
+		return 0;
+	}
+
+	if(!(pdpteEntry&1))
+	{
+		return 0; // Page not present
+	}
+
+	virtualAddress &= (1LL<<21)-1;
+
+	uint64_t pdeAddress = pdpteEntry&(~(0xFFF));
+
+	uint64_t pdeIndex = virtualAddress>>21;
+
+	uint64_t pdeEntry = 0;
+
+	if(!JTAGDMA(pdeAddress+(uint64_t(pdeIndex)*8), &pdeEntry, 8))
+	{
+		return 0;
+	}
+
+	if(!(pdeEntry&1))
+	{
+		return 0; // Page not present
+	}
+
+	virtualAddress &= (1LL<<12)-1;
+
+	uint64_t ptAddress = pdpteEntry&(~(0xFFF));
+
+	uint64_t ptIndex = virtualAddress>>12;
+
+	uint64_t ptEntry = 0;
+
+	if(!JTAGDMA(ptAddress+(uint64_t(ptIndex)*8), &ptEntry, 8))
+	{
+		return 0;
+	}
+
+	if(!(pdeEntry&1))
+	{
+		return 0; // Page not present or not 4kb paging mode
+	}
+
+	return (ptEntry&(~(0xFFF)))|(virtualAddress|0xFFF);
 }
