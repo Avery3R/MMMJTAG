@@ -2,9 +2,9 @@
 
 int main(int argc, char** argv)
 {
-	JTAGConnect();
+	JTAGConnect(JTAG_DMA_DEDICATED_CORE);
 
-	HANDLE hKernel = JTAGOpenKernel();
+	HKERNEL hKernel = JTAGOpenKernel(0x1AD000); //My page table always seems to be at 1AD000...
 
 	JTAGRun();
 

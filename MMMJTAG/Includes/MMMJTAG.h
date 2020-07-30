@@ -84,7 +84,7 @@ extern "C"
 	/// <returns>
 	/// INVALID_HANDLE_VALUE if unsucessful, otherwise a HANDLE value that can be used in functions requiring a HKERNEL parameter.
 	/// </returns>
-	JTAGIMP HKERNEL WINAPI JTAGOpenKernel();
+	JTAGIMP HKERNEL WINAPI JTAGOpenKernel(DWORD64 _In_ pageTableAddrOverride = 0);
 
 	/// <summary>
 	/// Reads physical memory into buffer

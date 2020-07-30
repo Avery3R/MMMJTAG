@@ -63,8 +63,9 @@ void DMACoreRefreshThread()
 		{
 			CPURunSingleCore(dmaCoreId);
 		}
-		std::this_thread::sleep_for(2500ms);
+		std::this_thread::sleep_for(250ms);
 		gDMAThreadsMutex.unlock();
+		std::this_thread::sleep_for(2250ms);
 	}
 }
 
@@ -307,10 +308,15 @@ JTAGIMP VOID WINAPI JTAGSetSymbolCachePath(LPCSTR _In_ symPath)
 	gSymbolPath = symPath;
 }
 
-JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
+JTAGIMP HKERNEL WINAPI JTAGOpenKernel(DWORD64 _In_ pageTableAddrOverride)
 {
 	// pair<lstar, cr3>
 	std::vector<std::pair<uint64_t, uint64_t>> kernelSearchParams;
+
+	if(!JTAGHaltExecution())
+	{
+		return INVALID_HANDLE_VALUE;
+	}
 
 	for(const auto &threadId : gThreads)
 	{
@@ -327,8 +333,22 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 		{
 			uint64_t cr3 = CPURegRead64(threadId, "cr3");
 
+			std::cout << "thread: " << hexout(threadId) << " CR3: " << hexout(cr3) << std::endl;
+
+			if(pageTableAddrOverride != 0)
+			{
+				cr3 = pageTableAddrOverride;
+			}
+
 			kernelSearchParams.push_back(std::make_pair(lstar, cr3));
 		}
+	}
+
+	std::this_thread::sleep_for(std::chrono::seconds(1)); //Stability, rapid starts and stops are bad for windows/hyper-v
+
+	if(!JTAGRun())
+	{
+		return INVALID_HANDLE_VALUE;
 	}
 
 	for(const auto &searchPair : kernelSearchParams)
