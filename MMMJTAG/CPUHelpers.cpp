@@ -5,6 +5,7 @@
 #include <IPC_Register.hpp>
 #include <IPC_OperationReceipt.hpp>
 #include <IPC_Memory.hpp>
+#include <IPC_RunControl.hpp>
 
 #include "HexOut.hpp"
 #include "MiscHelpers.hpp"
@@ -132,4 +133,80 @@ uint64_t CPUMSRRead64(const OpenIPC::IPC_DeviceId dev, MSR::addr_t msr)
 	}
 
 	return reg;
+}
+
+bool CPURunSingleCore(OpenIPC::IPC_DeviceId coreId)
+{
+	OpenIPC::Service_RunControl *runsvc;
+	OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_RunControl, (void**)&runsvc);
+
+	if(!runsvc)
+	{
+		std::cout << "Could not get the run control service" << std::endl;
+		return false;
+	}
+
+	OpenIPC::Service_OperationReceipt *opsvc = nullptr;
+	OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_OperationReceipt, (void**)&opsvc);
+	if(!opsvc)
+	{
+		std::cout << "Could not get the operation receipt service" << std::endl;
+		return 0;
+	}
+
+	OpenIPC::IPC_Handle operation;
+
+	if(!CallIPCAndCheckErrors([runsvc, coreId, &operation]{return runsvc->Go(coreId, &operation);}, "Resuming execution on single core", true))
+	{
+		return false;
+	}
+
+	if(!CallIPCAndCheckErrors([opsvc, &operation]{return opsvc->Flush(operation);}, "Flushing operation", true))
+	{
+		return false;
+	}
+	if(!CallIPCAndCheckErrors([opsvc, operation]{return opsvc->Destroy(operation);}, "Freeing operation", true))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool CPUHaltSingleCore(OpenIPC::IPC_DeviceId coreId)
+{
+	OpenIPC::Service_RunControl *runsvc;
+	OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_RunControl, (void**)&runsvc);
+
+	if(!runsvc)
+	{
+		std::cout << "Could not get the run control service" << std::endl;
+		return false;
+	}
+
+	OpenIPC::Service_OperationReceipt *opsvc = nullptr;
+	OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_OperationReceipt, (void**)&opsvc);
+	if(!opsvc)
+	{
+		std::cout << "Could not get the operation receipt service" << std::endl;
+		return 0;
+	}
+
+	OpenIPC::IPC_Handle operation;
+
+	if(!CallIPCAndCheckErrors([runsvc, coreId, &operation]{return runsvc->Halt(coreId, &operation);}, "Resuming execution on single core", true))
+	{
+		return false;
+	}
+
+	if(!CallIPCAndCheckErrors([opsvc, &operation]{return opsvc->Flush(operation);}, "Flushing operation", true))
+	{
+		return false;
+	}
+	if(!CallIPCAndCheckErrors([opsvc, operation]{return opsvc->Destroy(operation);}, "Freeing operation", true))
+	{
+		return false;
+	}
+
+	return true;
 }

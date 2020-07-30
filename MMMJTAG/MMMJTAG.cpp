@@ -10,6 +10,11 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <thread>
+#include <chrono>
+#include <mutex>
+
+using namespace std::chrono_literals;
 
 #include <DbgHelp.h>
 
@@ -21,6 +26,7 @@
 #include <IPC_OperationReceipt.hpp>
 #include <IPC_RunControl.hpp>
 #include <IPC_Memory.hpp>
+#include <IPC_Breakpoint.hpp>
 
 #include "HexOut.hpp"
 #include "CPUHelpers.hpp"
@@ -42,7 +48,24 @@ std::vector<OpenIPC::IPC_DeviceId> gThreads;
 /// </summary>
 std::vector<OpenIPC::IPC_DeviceId> dmaThreads;
 
+std::mutex gDMAThreadsMutex;
+
 BYTE gDMAMode = JTAG_DMA_HALT_ALL_CORES;
+
+//Things get unstable if the DMA cores are halted for too long, so we run them every 2.5s
+void DMACoreRefreshThread()
+{
+	while(true)
+	{
+		std::this_thread::sleep_for(2500ms);
+		gDMAThreadsMutex.lock();
+		for(const auto &dmaCoreId : dmaThreads)
+		{
+			CPURunSingleCore(dmaCoreId);
+		}
+		gDMAThreadsMutex.unlock();
+	}
+}
 
 JTAGIMP BOOL WINAPI JTAGConnect(BYTE _In_ dmaMode)
 {
@@ -133,6 +156,22 @@ JTAGIMP BOOL WINAPI JTAGConnect(BYTE _In_ dmaMode)
 		dmaThreads.push_back(gThreads[gThreads.size()-2]);
 		dmaThreads.push_back(gThreads[gThreads.size()-1]);
 		gThreads.resize(gThreads.size()-2);
+
+		OpenIPC::Service_Breakpoint *bpsvc;
+		OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_RunControl, (void**)&bpsvc);
+
+		if(!bpsvc)
+		{
+			std::cout << "Could not get the breakpoint service" << std::endl;
+			return FALSE;
+		}
+
+		if(!CallIPCAndCheckErrors([bpsvc, targetDomain]{return bpsvc->SetBreakAllSetting(targetDomain, OpenIPC::IPC_BreakAll_Disabled);}, "Setting BreakAll setting"))
+		{
+			return FALSE;
+		}
+
+		std::thread *dmaCoreRefresh = new std::thread(&DMACoreRefreshThread); //It's ok that we don't keep track of this thread, because there's no JTAGDisconnect() XD
 	}
 
 	for(const auto &threadId : gThreads)
@@ -400,8 +439,18 @@ JTAGIMP BOOL WINAPI JTAGDMA(DWORD64 _In_ physicalAddress, PVOID _In_ buffer, DWO
 		break;
 		case JTAG_DMA_DEDICATED_CORE:
 		{
-			std::cout << "JTAG_DMA_DEDICATED_CORE not yet implemented" << std::endl;
-			return FALSE;
+			gDMAThreadsMutex.lock();
+			for(const auto &dmaCore : dmaThreads)
+			{
+				if(!CPUHaltSingleCore(dmaCore))
+				{
+					gDMAThreadsMutex.unlock();
+					return FALSE;
+				}
+			}
+
+			result = CPUMemRead(dmaThreads[0], physicalAddress, buffer, bufferSize, true) ? TRUE : FALSE;
+			gDMAThreadsMutex.unlock();
 		}
 		break;
 	}

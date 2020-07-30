@@ -89,5 +89,11 @@
     <ClInclude Include="SymHelpers.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SpookyIntelStuff\IPC_Break.hpp">
+      <Filter>Header Files\SpookyIntel</Filter>
+    </ClInclude>
+    <ClInclude Include="SpookyIntelStuff\IPC_Breakpoint.hpp">
+      <Filter>Header Files\SpookyIntel</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
