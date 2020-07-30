@@ -158,7 +158,7 @@ JTAGIMP BOOL WINAPI JTAGConnect(BYTE _In_ dmaMode)
 		gThreads.resize(gThreads.size()-2);
 
 		OpenIPC::Service_Breakpoint *bpsvc;
-		OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_RunControl, (void**)&bpsvc);
+		OpenIPC::IPC_GetService(OpenIPC::IPC_ServiceId_Breakpoint, (void**)&bpsvc);
 
 		if(!bpsvc)
 		{
