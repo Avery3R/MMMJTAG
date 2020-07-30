@@ -1,6 +1,6 @@
 # My Machine, My JTAG
 
-MMMJTAG is an asbtraction library meant to make debugging windows apps/drivers using Intel DCI through OpenIPC easier.
+MMMJTAG is an abstraction library meant to make debugging windows apps/drivers using Intel DCI through OpenIPC easier.
 
 It also aims to evade anti-debugging. Some potential uses off of the top of my head are:
 
