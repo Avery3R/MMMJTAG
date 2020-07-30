@@ -8,13 +8,15 @@
 #include "CPUHelpers.hpp"
 #include "MiscHelpers.hpp"
 
-std::vector<uint8_t> GetDebugData(const OpenIPC::IPC_DeviceId threadId, const uint64_t modueBase)
+#include "Includes/MMMJTAG.h"
+
+std::vector<uint8_t> GetDebugData(const uint64_t pageTableAddr, const uint64_t modueBase)
 {
 	IMAGE_DOS_HEADER dosHeader;
-	CPUMemRead(threadId, modueBase, &dosHeader, sizeof(dosHeader));
+	JTAGDMA(JTAGTranslateAddress(pageTableAddr, modueBase), &dosHeader, sizeof(dosHeader));
 
 	IMAGE_NT_HEADERS64 ntHeaders;
-	CPUMemRead(threadId, modueBase+dosHeader.e_lfanew, &ntHeaders, sizeof(ntHeaders));
+	JTAGDMA(JTAGTranslateAddress(pageTableAddr, modueBase+dosHeader.e_lfanew), &ntHeaders, sizeof(ntHeaders));
 
 	std::vector<uint8_t> debugData;
 
@@ -23,7 +25,7 @@ std::vector<uint8_t> GetDebugData(const OpenIPC::IPC_DeviceId threadId, const ui
 	for(size_t i = 0; i < numDebugDirs; ++i)
 	{
 		IMAGE_DEBUG_DIRECTORY dbgDir;
-		CPUMemRead(threadId, modueBase+dbgDataDir.VirtualAddress+i*sizeof(IMAGE_DEBUG_DIRECTORY), &dbgDir, sizeof(dbgDir));
+		JTAGDMA(JTAGTranslateAddress(pageTableAddr, modueBase+dbgDataDir.VirtualAddress+i*sizeof(IMAGE_DEBUG_DIRECTORY)), &dbgDir, sizeof(dbgDir));
 
 		debugData.insert(debugData.end(), (char*)&dbgDir, (char*)(&dbgDir)+sizeof(dbgDir));
 	}
@@ -40,7 +42,7 @@ std::vector<uint8_t> GetDebugData(const OpenIPC::IPC_DeviceId threadId, const ui
 		}
 
 		std::vector<uint8_t> dataBuf(dbgDir->SizeOfData);
-		CPUMemRead(threadId, modueBase+dbgDir->AddressOfRawData, &dataBuf[0], dataBuf.size());
+		JTAGDMA(JTAGTranslateAddress(pageTableAddr, modueBase+dbgDir->AddressOfRawData), &dataBuf[0], dataBuf.size());
 
 		size_t dataOffset = debugData.size();
 

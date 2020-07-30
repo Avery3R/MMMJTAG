@@ -13,6 +13,7 @@
 #include <thread>
 #include <chrono>
 #include <mutex>
+#include <utility>
 
 using namespace std::chrono_literals;
 
@@ -57,12 +58,12 @@ void DMACoreRefreshThread()
 {
 	while(true)
 	{
-		std::this_thread::sleep_for(2500ms);
 		gDMAThreadsMutex.lock();
 		for(const auto &dmaCoreId : dmaThreads)
 		{
 			CPURunSingleCore(dmaCoreId);
 		}
+		std::this_thread::sleep_for(2500ms);
 		gDMAThreadsMutex.unlock();
 	}
 }
@@ -308,12 +309,9 @@ JTAGIMP VOID WINAPI JTAGSetSymbolCachePath(LPCSTR _In_ symPath)
 
 JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 {
-	if(!JTAGHaltExecution())
-	{
-		return INVALID_HANDLE_VALUE;
-	}
+	// pair<lstar, cr3>
+	std::vector<std::pair<uint64_t, uint64_t>> kernelSearchParams;
 
-	uint64_t kernelAddr = 0;
 	for(const auto &threadId : gThreads)
 	{
 		uint64_t lstar;
@@ -321,38 +319,50 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 
 		std::cout << "thread: " << hexout(threadId) << " IA32_LSTAR_MSR: " << hexout(lstar) << std::endl;
 
-		uint64_t kernelSyscallAddr = 0;
-
-		if(lstar != 0)
-		{
-			kernelSyscallAddr = lstar;
-		}
-		else
-		{
-			continue;
-		}
-
 		const uint64_t CS = CPURegRead64(threadId, "cs");
 
 		std::cout << "thread: " << hexout(threadId) << " CS: " << hexout(CS) << std::endl;
 
 		if((CS&3) == 0) //CPL = Ring-0
 		{
+			uint64_t cr3 = CPURegRead64(threadId, "cr3");
+
+			kernelSearchParams.push_back(std::make_pair(lstar, cr3));
+		}
+	}
+
+	for(const auto &searchPair : kernelSearchParams)
+	{
+		uint64_t lstarPhysicalAddress = JTAGTranslateAddress(searchPair.second, searchPair.first);
+		if(lstarPhysicalAddress)
+		{
+			std::cout << "found an LSTAR at: " << hexout(lstarPhysicalAddress) << std::endl;
+
 			constexpr size_t PAGE_SIZE = 0x1000ll;
 			constexpr size_t PAGE_MASK = ~(PAGE_SIZE-1);
 
-			const size_t searchBase = kernelSyscallAddr&PAGE_MASK;
+			const size_t searchBase = searchPair.first&PAGE_MASK;
 			constexpr size_t MEMBUF_SIZE = 2;
 			std::vector<uint8_t> membuf(MEMBUF_SIZE);
 			//FIXME: Reset this to PAGE_SIZE*1
+
+			uint64_t kernelAddr = 0;
+
 			for(size_t lookback = PAGE_SIZE*0x1C0; lookback < 32*1024*1024; lookback += PAGE_SIZE)
 			{
 				std::cout << "Searching for kernel base " << hexout<16>(lookback/PAGE_SIZE) << '/' << hexout<16>(32*1024*1024/PAGE_SIZE) << std::endl;
 
-				if(!CPUMemRead(threadId, searchBase-lookback, &membuf[0], membuf.size()))
+				uint64_t searchPhysicalAddr = JTAGTranslateAddress(searchPair.second,  searchBase-lookback);
+				if(!searchPhysicalAddr)
+				{
+					std::cout << "Page not mapped... continuing onto the next search pair." << std::endl;
+					break;
+				}
+
+				if(!JTAGDMA(searchPhysicalAddr, &membuf[0], MEMBUF_SIZE))
 				{
 					//Something is messed up with this thread
-					std::cout << "Memory read error... Continuing onto the next thread" << std::endl;
+					std::cout << "Memory read error... Continuing onto the next search pair" << std::endl;
 					break;
 				}
 
@@ -378,7 +388,7 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 				std::cout << "Found kernel at " << hexout(kernelAddr) << std::endl;
 				std::cout << "Walking through kernel DOS/PE header to find debug directories" << std::endl;
 
-				auto debugData = GetDebugData(threadId, kernelAddr);
+				auto debugData = GetDebugData(searchPair.second, kernelAddr);
 
 				BOOL winresult = SymInitialize(hKernel, (std::string("srv*")+gSymbolPath+"*https://msdl.microsoft.com/download/symbols").c_str(), FALSE);
 				//DWORD winresult32 = SymSetOptions(
@@ -403,7 +413,6 @@ JTAGIMP HKERNEL WINAPI JTAGOpenKernel()
 
 				std::cout << "PsActiveProcessHead at: " << hexout(GetAddrOfSymbol(hKernel, "nt!PsActiveProcessHead")) << std::endl;
 
-				JTAGRun();
 				return hKernel;
 			}
 		}

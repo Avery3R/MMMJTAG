@@ -10,7 +10,7 @@
 
 #include <IpcApiAccess.hpp>
 
-std::vector<uint8_t> GetDebugData(const OpenIPC::IPC_DeviceId threadId, const uint64_t modueBase);
+std::vector<uint8_t> GetDebugData(const uint64_t pageTableAddr, const uint64_t modueBase);
 BOOL SymbolCallback(HANDLE hProcess, ULONG ActionCode, ULONG64 CallbackData, ULONG64 UserContext);
 uint64_t GetAddrOfSymbol(HANDLE hSym, const std::string &symbolName);
 ULONG GetTypeIdFromName(HANDLE hSym, const uint64_t moduleBase, const std::string &typeName);
